@@ -181,7 +181,7 @@ export function StoragePasswordSetup({ userId }: { userId: string }) {
   );
 }
 
-export function StoragePasswordGate({ userId, onUnlock }: { userId: string; onUnlock: (pin: string) => void }) {
+export function StoragePasswordGate({ userId, onUnlock }: { userId: string; onUnlock: () => void }) {
   const [pin, setPin] = useState('');
   const [checking, setChecking] = useState(false);
   const [showPin, setShowPin] = useState(false);
@@ -193,33 +193,19 @@ export function StoragePasswordGate({ userId, onUnlock }: { userId: string; onUn
     setChecking(true);
     setError('');
 
-    try {
-      // Verify through edge function (server-side check)
-      const { data: sessionData } = await supabase.auth.getSession();
-      const accessToken = sessionData?.session?.access_token;
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      
-      const response = await fetch(`${supabaseUrl}/functions/v1/secure-storage-data`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`,
-          'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-        },
-        body: JSON.stringify({ pin, action: 'files' }), // Just a test call
-      });
+    const hashed = await hashPin(pin);
+    const { data } = await supabase
+      .from('storage_passwords')
+      .select('password_hash')
+      .eq('user_id', userId)
+      .eq('is_enabled', true)
+      .single() as any;
 
-      setChecking(false);
+    setChecking(false);
 
-      if (response.ok) {
-        onUnlock(pin);
-      } else {
-        setError('Mật khẩu không đúng');
-        setPin('');
-        toast({ title: 'Sai mật khẩu', description: 'Vui lòng thử lại', variant: 'destructive' });
-      }
-    } catch {
-      setChecking(false);
+    if (data && data.password_hash === hashed) {
+      onUnlock();
+    } else {
       setError('Mật khẩu không đúng');
       setPin('');
       toast({ title: 'Sai mật khẩu', description: 'Vui lòng thử lại', variant: 'destructive' });
