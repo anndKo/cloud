@@ -139,7 +139,7 @@ export function TextEditor({ document, onClose, onSaved }: TextEditorProps) {
       if (document?.id) {
         // Update existing
         const { error } = await supabase
-          .from('user_texts' as any)
+          .from('user_texts')
           .update(data)
           .eq('id', document.id);
         
@@ -153,7 +153,7 @@ export function TextEditor({ document, onClose, onSaved }: TextEditorProps) {
       } else {
         // Create new
         const { error } = await supabase
-          .from('user_texts' as any)
+          .from('user_texts')
           .insert(data);
         
         if (error) throw error;
@@ -187,7 +187,7 @@ export function TextEditor({ document, onClose, onSaved }: TextEditorProps) {
     setIsDeleting(true);
     try {
       const { error } = await supabase
-        .from('user_texts' as any)
+        .from('user_texts')
         .delete()
         .eq('id', document.id);
       
@@ -494,10 +494,9 @@ export function TextEditor({ document, onClose, onSaved }: TextEditorProps) {
 interface TextListProps {
   onCreateNew: () => void;
   onEdit: (doc: TextDocument) => void;
-  verifiedPin?: string | null;
 }
 
-export function TextList({ onCreateNew, onEdit, verifiedPin }: TextListProps) {
+export function TextList({ onCreateNew, onEdit }: TextListProps) {
   const [documents, setDocuments] = useState<TextDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
@@ -508,38 +507,14 @@ export function TextList({ onCreateNew, onEdit, verifiedPin }: TextListProps) {
     
     setLoading(true);
     try {
-      if (verifiedPin) {
-        // Use edge function for PIN-protected access
-        const { data: sessionData } = await supabase.auth.getSession();
-        const accessToken = sessionData?.session?.access_token;
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-        
-        const response = await fetch(`${supabaseUrl}/functions/v1/secure-storage-data`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${accessToken}`,
-            'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-          },
-          body: JSON.stringify({ pin: verifiedPin, action: 'texts' }),
-        });
-        
-        if (response.ok) {
-          const data = await response.json();
-          setDocuments(data.texts || []);
-        } else {
-          throw new Error('Failed to fetch texts');
-        }
-      } else {
-        const { data, error } = await supabase
-          .from('user_texts' as any)
-          .select('*')
-          .eq('user_id', user.id)
-          .order('updated_at', { ascending: false });
-        
-        if (error) throw error;
-        setDocuments((data as any) || []);
-      }
+      const { data, error } = await supabase
+        .from('user_texts')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('updated_at', { ascending: false });
+      
+      if (error) throw error;
+      setDocuments(data || []);
     } catch (error: any) {
       toast({
         variant: 'destructive',
