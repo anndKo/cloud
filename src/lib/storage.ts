@@ -17,56 +17,35 @@ export async function uploadFile(
     const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
     const filePath = `${userId}/${category}/${fileName}`;
 
-    // Upload file directly - Supabase handles large files
-    // Using XMLHttpRequest for progress tracking
-    const formData = new FormData();
-    formData.append('', file);
+    // Simulate progress since Supabase SDK doesn't support progress natively
+    let progressInterval: ReturnType<typeof setInterval> | null = null;
+    if (onProgress) {
+      let fakeProgress = 0;
+      progressInterval = setInterval(() => {
+        fakeProgress = Math.min(fakeProgress + Math.random() * 15, 90);
+        onProgress({
+          loaded: Math.round((fakeProgress / 100) * file.size),
+          total: file.size,
+          percentage: Math.round(fakeProgress),
+        });
+      }, 300);
+    }
 
-    const { data: sessionData } = await supabase.auth.getSession();
-    const accessToken = sessionData?.session?.access_token;
-
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-
-    return new Promise((resolve) => {
-      const xhr = new XMLHttpRequest();
-      
-      xhr.upload.addEventListener('progress', (event) => {
-        if (event.lengthComputable && onProgress) {
-          onProgress({
-            loaded: event.loaded,
-            total: event.total,
-            percentage: Math.round((event.loaded / event.total) * 100),
-          });
-        }
+    const { error } = await supabase.storage
+      .from('user_files')
+      .upload(filePath, file, {
+        cacheControl: '3600',
+        upsert: false,
       });
 
-      xhr.addEventListener('load', () => {
-        if (xhr.status >= 200 && xhr.status < 300) {
-          onProgress?.({ loaded: file.size, total: file.size, percentage: 100 });
-          resolve({ path: filePath, error: null });
-        } else {
-          let errorMessage = 'Upload failed';
-          try {
-            const response = JSON.parse(xhr.responseText);
-            errorMessage = response.error || response.message || errorMessage;
-          } catch {
-            // ignore parse error
-          }
-          resolve({ path: '', error: new Error(errorMessage) });
-        }
-      });
+    if (progressInterval) clearInterval(progressInterval);
 
-      xhr.addEventListener('error', () => {
-        resolve({ path: '', error: new Error('Upload failed') });
-      });
+    if (error) {
+      return { path: '', error };
+    }
 
-      xhr.open('POST', `${supabaseUrl}/storage/v1/object/user_files/${filePath}`);
-      xhr.setRequestHeader('Authorization', `Bearer ${accessToken || supabaseKey}`);
-      xhr.setRequestHeader('apikey', supabaseKey);
-      xhr.setRequestHeader('x-upsert', 'false');
-      xhr.send(file);
-    });
+    onProgress?.({ loaded: file.size, total: file.size, percentage: 100 });
+    return { path: filePath, error: null };
   } catch (error) {
     return { path: '', error: error as Error };
   }
