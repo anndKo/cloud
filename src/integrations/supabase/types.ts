@@ -170,6 +170,10 @@ export type Database = {
         Args: { share_code_input: string }
         Returns: Json
       }
+      get_shared_items_bulk: {
+        Args: { share_code_input: string }
+        Returns: Json
+      }
       increment_share_view_count: {
         Args: { share_code: string }
         Returns: boolean

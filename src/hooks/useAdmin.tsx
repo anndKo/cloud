@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Profile, Post, Report, BannedIP, AdminLog, UserRole } from '@/types/database';

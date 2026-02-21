@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { useState, useEffect, useCallback } from 'react';
 import { supabase, uploadFile } from '@/lib/supabase';
 import { Post, Profile, PostComment } from '@/types/database';

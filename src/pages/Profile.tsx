@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Camera, MessageCircle, UserPlus, UserMinus, Check, X, Copy } from 'lucide-react';

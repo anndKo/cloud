@@ -69,7 +69,47 @@ export async function createShareCode(
   }
 }
 
-// Get signed URL for shared files using Edge Function (bypasses RLS)
+// Create a single share code for multiple items (bulk share)
+export async function createBulkShareCode(
+  userId: string,
+  itemIds: string[],
+  itemType: 'file' | 'link',
+  maxViews: number | null = null,
+  expiresInMinutes: number | null = null,
+  allowDownload: boolean = true
+): Promise<{ code: string | null; error: Error | null }> {
+  try {
+    const code = generateShareCode();
+    
+    let expiresAt: string | null = null;
+    if (expiresInMinutes && expiresInMinutes > 0) {
+      expiresAt = new Date(Date.now() + expiresInMinutes * 60 * 1000).toISOString();
+    }
+
+    // Create a share code for each item with the SAME code
+    const inserts = itemIds.map(itemId => ({
+      code,
+      user_id: userId,
+      item_id: itemId,
+      item_type: itemType,
+      max_views: maxViews,
+      view_count: 0,
+      expires_at: expiresAt,
+      allow_download: allowDownload,
+    }));
+
+    const { error } = await supabase
+      .from('share_codes')
+      .insert(inserts);
+
+    if (error) throw error;
+
+    return { code, error: null };
+  } catch (error) {
+    return { code: null, error: error as Error };
+  }
+}
+
 export async function getSharedFileSignedUrl(filePath: string, shareCode: string): Promise<{
   url: string | null;
   error: Error | null;
@@ -98,34 +138,28 @@ export async function getSharedFileSignedUrl(filePath: string, shareCode: string
   }
 }
 
-// Secure function to get shared item using RPC
-// This atomically checks validity and increments view_count AFTER retrieving the item
+// Secure function to get shared items (supports both single and bulk)
 export async function getSharedItemSecure(code: string): Promise<{
   item: any;
+  items?: any[];
+  isBulk?: boolean;
   type: 'file' | 'link' | null;
   viewCount?: number;
   maxViews?: number | null;
   allowDownload?: boolean;
   signedUrl?: string;
+  signedUrls?: Record<string, string>;
   error: Error | null;
 }> {
   try {
-    const { data, error } = await supabase.rpc('get_shared_item_secure', {
+    // Use bulk function which handles both single and multiple items
+    const { data, error } = await supabase.rpc('get_shared_items_bulk', {
       share_code_input: code.toUpperCase()
     });
 
     if (error) throw error;
 
-    // Parse the response
-    const result = data as {
-      success: boolean;
-      error?: string;
-      item?: any;
-      type?: 'file' | 'link';
-      view_count?: number;
-      max_views?: number | null;
-      allow_download?: boolean;
-    };
+    const result = data as any;
 
     if (!result.success) {
       return { 
@@ -135,13 +169,35 @@ export async function getSharedItemSecure(code: string): Promise<{
       };
     }
 
-    // For files, get signed URL via Edge Function
+    // Bulk share - multiple items
+    if (result.is_bulk && result.items) {
+      const items = result.items as any[];
+      
+      // Get signed URLs for all file items
+      const signedUrls: Record<string, string> = {};
+      for (const item of items) {
+        if (item.item_type === 'file' && item.file_path) {
+          const { url } = await getSharedFileSignedUrl(item.file_path, code);
+          if (url) signedUrls[item.id] = url;
+        }
+      }
+
+      return { 
+        item: items[0],
+        items,
+        isBulk: true,
+        type: items[0]?.item_type || 'file',
+        allowDownload: result.allow_download ?? true,
+        signedUrls,
+        error: null 
+      };
+    }
+
+    // Single item (delegated to get_shared_item_secure)
     let signedUrl: string | undefined;
     if (result.type === 'file' && result.item?.file_path) {
-      const { url, error: urlError } = await getSharedFileSignedUrl(result.item.file_path, code);
-      if (!urlError && url) {
-        signedUrl = url;
-      }
+      const { url } = await getSharedFileSignedUrl(result.item.file_path, code);
+      if (url) signedUrl = url;
     }
 
     return { 
@@ -158,7 +214,7 @@ export async function getSharedItemSecure(code: string): Promise<{
   }
 }
 
-// Legacy function - kept for backward compatibility but use getSharedItemSecure instead
+// Legacy function - kept for backward compatibility
 export async function getSharedItem(code: string): Promise<{
   item: any;
   type: 'file' | 'link' | null;

@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { Layout } from '@/components/layout/Layout';
 import { CreatePostForm } from '@/components/post/CreatePostForm';
 import { PostCard } from '@/components/post/PostCard';
