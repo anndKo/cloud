@@ -174,8 +174,12 @@ export function UploadZone({ onUploadComplete }: UploadZoneProps) {
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      handleFiles(e.target.files);
+      // Copy files before resetting input - important for iOS
+      const files = Array.from(e.target.files);
+      handleFiles(files);
     }
+    // Reset input so the same file can be selected again & iOS closes picker properly
+    e.target.value = '';
   };
 
   const handleAddLink = async () => {
