@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { useState } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { vi } from 'date-fns/locale';

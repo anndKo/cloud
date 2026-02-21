@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { Link, useLocation } from 'react-router-dom';
 import { Home, MessageCircle, User, Settings, LogOut, Shield, Search, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';

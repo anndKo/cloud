@@ -174,11 +174,14 @@ export function UploadZone({ onUploadComplete }: UploadZoneProps) {
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      // Copy files before resetting input - important for iOS
+      // Copy files immediately before any async work
       const files = Array.from(e.target.files);
-      handleFiles(files);
+      // Reset input FIRST so iOS closes the photo picker immediately
+      e.target.value = '';
+      // Defer processing to next tick so the picker UI can dismiss
+      setTimeout(() => handleFiles(files), 0);
+      return;
     }
-    // Reset input so the same file can be selected again & iOS closes picker properly
     e.target.value = '';
   };
 
